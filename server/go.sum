@@ -1,9 +1,5 @@
-github.com/inconshreveable/go-vhost v0.0.0-20160627193104-06d84117953b h1:IpLPmn6Re21F0MaV6Zsc5RdSE6KuoFpWmHiUSEs3PrE=
-github.com/inconshreveable/go-vhost v0.0.0-20160627193104-06d84117953b/go.mod h1:aA6DnFhALT3zH0y+A39we+zbrdMC2N0X/q21e6FI0LU=
 github.com/inconshreveable/go-vhost v1.0.0 h1:IK4VZTlXL4l9vz2IZoiSFbYaaqUW7dXJAiPriUN5Ur8=
 github.com/inconshreveable/go-vhost v1.0.0/go.mod h1:aA6DnFhALT3zH0y+A39we+zbrdMC2N0X/q21e6FI0LU=
-github.com/progrium/qmux/golang v0.0.0-20210428195120-05a36e97c488 h1:wG/GkKO0L/98gyqxx0Jm8CyVf/bPW3XUY8abCsFc5Yw=
-github.com/progrium/qmux/golang v0.0.0-20210428195120-05a36e97c488/go.mod h1:Z2EPtydgPrcZxO50GhkzTGgdWjA5PPHsZkoq6KTxPVE=
 github.com/progrium/qmux/golang v0.0.0-20210721211401-475935a675d8 h1:hLnTL/51vGU9IB4yFFExFSQgRlqFh0GHIJxCcOh7LT0=
 github.com/progrium/qmux/golang v0.0.0-20210721211401-475935a675d8/go.mod h1:Z2EPtydgPrcZxO50GhkzTGgdWjA5PPHsZkoq6KTxPVE=
 golang.org/x/net v0.0.0-20210420210106-798c2154c571/go.mod h1:72T/g9IO56b78aLF+1Kcs5dz7/ng1VjMUvfKvpfy+jM=

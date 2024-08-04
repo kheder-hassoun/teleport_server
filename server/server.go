@@ -10,32 +10,39 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
-
-	vhost "github.com/inconshreveable/go-vhost" //? for handeling virtual host  actually in http request
+	"github.com/inconshreveable/go-vhost"
 	"github.com/progrium/qmux/golang/session"
 )
 
+var connectionLimits = map[string]int{
+	"free":     1,
+	"moderate": 50,
+	"high":     100,
+}
+
+var activeConnections = struct {
+	sync.RWMutex
+	connections map[string]int
+}{connections: make(map[string]int)}
+
 func main() {
-	var port = flag.String("p", "9999", "server port to use") //* here we define a command line flage name it p it's specific the server port and defult value is 9999
-	//var host = flag.String("h", "vcap.me", "server hostname to use") //* -h specifying the server hostname defult is vcap.me // vcap.me it's a public domain that resolves to 127.0.0.1.
+	var port = flag.String("p", "9999", "server port to use")
 	var host = flag.String("h", "teleport.me", "server hostname to use")
 	var addr = flag.String("b", "0.0.0.0", "ip to bind [server only]")
-	flag.Parse() //? now we can get value by name ('port','host','addr')
+	flag.Parse()
 
-	//---------------------------------------
-
-	l, err := net.Listen("tcp", net.JoinHostPort(*addr, *port)) //*sets up a TCP listener on the specified address and port. l is the listner object
+	l, err := net.Listen("tcp", net.JoinHostPort(*addr, *port))
 	fatal(err)
-	defer l.Close() //* close the listner after return ✔
-	//? Creates a new HTTP multiplexer to handle virtual host connections.
+	defer l.Close()
+
 	vmux, err := vhost.NewHTTPMuxer(l, 1*time.Second)
 	fatal(err)
 
-	go serve(vmux, *host, *port) //Starts the serve function in a new goroutine to handle incoming connections.
+	go serve(vmux, *host, *port)
 
 	log.Printf("TelePort server [%s] ready!\n", *host)
-	//? Continuously handles incoming connections and errors from the HTTP multiplexer.
 	for {
 		conn, err := vmux.NextError()
 		fmt.Println(err)
@@ -46,49 +53,77 @@ func main() {
 }
 
 func serve(vmux *vhost.HTTPMuxer, host, port string) {
-	ml, err := vmux.Listen(net.JoinHostPort(host, port)) //Starts listening for HTTP connections on the specified host and port.
+	ml, err := vmux.Listen(net.JoinHostPort(host, port))
 	fatal(err)
 
-	// Creates a new HTTP server with a specific request handler.
-	// w: The http.ResponseWriter used to send responses.
-	//r: The http.Request representing the client's request.
 	srv := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		//Generates a new subdomain and creates a public host string
+		subscription := r.Header.Get("X-Subscription-Level")
+		log.Println("supscription : ", subscription)
+		if subscription == "" {
+			subscription = "free"
+		}
+
 		publicHost := strings.TrimSuffix(net.JoinHostPort(newSubdomain()+host, port), ":80")
-		pl, err := vmux.Listen(publicHost) //Sets up a new listener for the generated public host.
+		pl, err := vmux.Listen(publicHost)
 		fatal(err)
 		w.Header().Add("X-Public-Host", publicHost)
 		w.Header().Add("Connection", "close")
 		w.WriteHeader(http.StatusOK)
-		//? Hijacks the HTTP connection, taking control of the underlying TCP connection.
 		conn, _, _ := w.(http.Hijacker).Hijack()
 		sess := session.New(conn)
 		defer sess.Close()
 		log.Printf("%s: start session", publicHost)
-		//? Handles incoming connections in a separate goroutine.
-		go func() {
-			for {
-				conn, err := pl.Accept()
-				if err != nil {
-					log.Println(err)
-					return
-				}
-				ch, err := sess.Open(context.Background())
-				if err != nil {
-					log.Println(err)
-					return
-				}
-				go join(ch, conn)
-			}
-		}()
+
+		go handleConnections(sess, pl, subscription, publicHost)
 		sess.Wait()
 		log.Printf("%s: end session", publicHost)
 	})}
 	srv.Serve(ml)
 }
 
-// * This function is crucial for setting up a tunnel where data can flow in both directions
-// * between two connections, enabling seamless communication between them.
+func handleConnections(sess *session.Session, pl net.Listener, subscription, publicHost string) {
+	var wg sync.WaitGroup
+
+	//log.Println("handelConnection function :  subscripation type : " , subscripation)
+	for {
+
+		activeConnections.Lock()
+		if activeConnections.connections[publicHost] >= connectionLimits[subscription] {
+			log.Println("activeConnections.connections[publicHost] >= connectionLimits[subscription]")
+			activeConnections.Unlock()
+			break
+		}
+		log.Println("activeConnections.connections[publicHost] : ",activeConnections.connections[publicHost])
+		activeConnections.connections[publicHost]++
+		activeConnections.Unlock()
+
+		conn, err := pl.Accept()
+		if err != nil {
+			log.Println(err)
+			break
+		}
+
+		ch, err := sess.Open(context.Background())
+		if err != nil {
+			log.Println(err)
+			break
+		}
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			defer func() {
+				activeConnections.Lock()
+				activeConnections.connections[publicHost]--
+				activeConnections.Unlock()
+			}()
+			join(ch, conn)
+		}()
+	}
+
+	wg.Wait()
+}
+
 func join(a io.ReadWriteCloser, b io.ReadWriteCloser) {
 	go io.Copy(b, a)
 	io.Copy(a, b)
@@ -114,4 +149,3 @@ func fatal(err error) {
 		log.Fatal(err)
 	}
 }
-
