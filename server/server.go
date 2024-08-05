@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+
 	"github.com/inconshreveable/go-vhost"
 	"github.com/progrium/qmux/golang/session"
 )
@@ -58,7 +59,7 @@ func serve(vmux *vhost.HTTPMuxer, host, port string) {
 
 	srv := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		subscription := r.Header.Get("X-Subscription-Level")
-		log.Println("supscription : ", subscription)
+		log.Println("Received subscription header:", subscription)
 		if subscription == "" {
 			subscription = "free"
 		}
@@ -84,16 +85,15 @@ func serve(vmux *vhost.HTTPMuxer, host, port string) {
 func handleConnections(sess *session.Session, pl net.Listener, subscription, publicHost string) {
 	var wg sync.WaitGroup
 
-	//log.Println("handelConnection function :  subscripation type : " , subscripation)
+	log.Println("Handling connections for:", publicHost, "with subscription:", subscription)
 	for {
-
 		activeConnections.Lock()
 		if activeConnections.connections[publicHost] >= connectionLimits[subscription] {
-			log.Println("activeConnections.connections[publicHost] >= connectionLimits[subscription]")
+			log.Println("Connection limit reached for subscription level:", subscription)
 			activeConnections.Unlock()
 			break
 		}
-		log.Println("activeConnections.connections[publicHost] : ",activeConnections.connections[publicHost])
+		log.Println("Current active connections for", publicHost, ":", activeConnections.connections[publicHost])
 		activeConnections.connections[publicHost]++
 		activeConnections.Unlock()
 
