@@ -13,8 +13,10 @@ import (
 	"sync"
 	"time"
 
+	
 	"server/local/go-vhost"
 	"server/local/session"
+	"golang.org/x/time/rate"
 )
 
 var connectionLimits = map[string]int{
@@ -23,10 +25,15 @@ var connectionLimits = map[string]int{
 	"high":     100,
 }
 
+type ClientConnection struct {
+	limiter *rate.Limiter
+	active  int
+}
+
 var activeConnections = struct {
 	sync.RWMutex
-	connections map[string]int
-}{connections: make(map[string]int)}
+	connections map[string]*ClientConnection
+}{connections: make(map[string]*ClientConnection)}
 
 func main() {
 	var port = flag.String("p", "9999", "server port to use")
@@ -46,7 +53,9 @@ func main() {
 	log.Printf("TelePort server [%s] ready!\n", *host)
 	for {
 		conn, err := vmux.NextError()
-		fmt.Println(err)
+		if err != nil {
+			fmt.Println(err)
+		}
 		if conn != nil {
 			conn.Close()
 		}
@@ -64,9 +73,26 @@ func serve(vmux *vhost.HTTPMuxer, host, port string) {
 			subscription = "free"
 		}
 
+		// Create or get the rate limiter and connection count for this host
+		activeConnections.Lock()
+		if _, exists := activeConnections.connections[r.RemoteAddr]; !exists {
+			activeConnections.connections[r.RemoteAddr] = &ClientConnection{
+				limiter: rate.NewLimiter(rate.Limit(connectionLimits[subscription]), connectionLimits[subscription]),
+				active:  0,
+			}
+		}
+		clientConn := activeConnections.connections[r.RemoteAddr]
+		activeConnections.Unlock()
+
 		publicHost := strings.TrimSuffix(net.JoinHostPort(newSubdomain()+host, port), ":80")
 		pl, err := vmux.Listen(publicHost)
-		fatal(err)
+		if err != nil {
+			http.Error(w, "Server error", http.StatusInternalServerError)
+			log.Println("Error creating listener:", err)
+			return
+		}
+		defer pl.Close() // Ensure listener is closed
+
 		w.Header().Add("X-Public-Host", publicHost)
 		w.Header().Add("Connection", "close")
 		w.WriteHeader(http.StatusOK)
@@ -75,37 +101,47 @@ func serve(vmux *vhost.HTTPMuxer, host, port string) {
 		defer sess.Close()
 		log.Printf("%s: start session", publicHost)
 
-		go handleConnections(sess, pl, subscription, publicHost)
+		go handleConnections(sess, pl, subscription, publicHost, clientConn)
 		sess.Wait()
 		log.Printf("%s: end session", publicHost)
+
+		activeConnections.Lock()
+		delete(activeConnections.connections, r.RemoteAddr)
+		activeConnections.Unlock()
 	})}
 	srv.Serve(ml)
 }
 
-func handleConnections(sess *session.Session, pl net.Listener, subscription, publicHost string) {
+func handleConnections(sess *session.Session, pl net.Listener, subscription, publicHost string, clientConn *ClientConnection) {
 	var wg sync.WaitGroup
 
 	log.Println("Handling connections for:", publicHost, "with subscription:", subscription)
 	for {
 		activeConnections.Lock()
-		if activeConnections.connections[publicHost] >= connectionLimits[subscription] {
+		if clientConn.active >= connectionLimits[subscription] {
 			log.Println("Connection limit reached for subscription level:", subscription)
 			activeConnections.Unlock()
 			break
 		}
-		log.Println("Current active connections for", publicHost, ":", activeConnections.connections[publicHost])
-		activeConnections.connections[publicHost]++
+		log.Println("Current active connections for", publicHost, ":", clientConn.active)
+		clientConn.active++
 		activeConnections.Unlock()
+
+		if err := clientConn.limiter.Wait(context.Background()); err != nil {
+			log.Println("Rate limit exceeded:", err)
+			break
+		}
 
 		conn, err := pl.Accept()
 		if err != nil {
-			log.Println(err)
+			log.Println("Listener accept error:", err)
 			break
 		}
 
 		ch, err := sess.Open(context.Background())
 		if err != nil {
-			log.Println(err)
+			log.Println("Session open error:", err)
+			conn.Close()
 			break
 		}
 
@@ -114,7 +150,7 @@ func handleConnections(sess *session.Session, pl net.Listener, subscription, pub
 			defer wg.Done()
 			defer func() {
 				activeConnections.Lock()
-				activeConnections.connections[publicHost]--
+				clientConn.active--
 				activeConnections.Unlock()
 			}()
 			join(ch, conn)
