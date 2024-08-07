@@ -13,8 +13,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/inconshreveable/go-vhost"
-	"github.com/progrium/qmux/golang/session"
+	"server/local/go-vhost"
+	"server/local/session"
 )
 
 var connectionLimits = map[string]int{
