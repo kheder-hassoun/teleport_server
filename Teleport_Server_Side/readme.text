@@ -1,3 +1,4 @@
+run it in linux 
 for first run 
 go mod init main
 
@@ -5,12 +6,15 @@ go mod tidy
 
 go run server.go 
 
-go lang in the mod file must be 1.20  
+go lang in the mod file must be 1.20   or 1.16 for some linux machines, it's ur responsibility 
 
 and you shoud run: go get golang.org/x/time/rate
 
 you can install go 1.20  manualy just use wget (i download it you can
 fin it in backup7 )
 
-then extact in in etc i guss (ask gpt ) 
+ extact it
 then add it to path with a simple command 
+if you have so much time ⌚ 
+
+//**** I hate Go lang *********
