@@ -3,7 +3,7 @@
 ## suggest to read the report its better
 
 Teleport is a service developed using the Go programming language, chosen for its high efficiency in managing concurrent connections and superior performance. This makes it an ideal choice for building applications that need to handle large numbers of users with high traffic volumes.
-![Diagram of Teleport Architecture](./images/teleport_system.png)
+![Diagram of Teleport Architecture](./images/teleport_system.pn)
 
 The service comprises several core components, including a central server for managing connections and sessions, an authentication system to ensure data security, and a mechanism for assigning subdomains to each client. The data flow is regulated according to subscription limits through rate limiters, with effective management of active sessions to ensure service continuity securely and efficiently.
 
@@ -21,7 +21,7 @@ The project is functionally divided into the following folders:
   - **`go-vhost, mux`**: Provides tools for implementing virtual hosting for various protocols like HTTP and TLS. It offers both high-level and low-level interfaces. The high-level interface allows developers to easily manage virtual hosting by wrapping `net.Listener` objects, enabling precise request routing based on the hostname. The low-level interface, on the other hand, offers more direct control over extracting and handling protocol-specific information like the hostname.
   - **`session, transport`**: Manages user sessions and data transport between endpoints.
 
-![Diagram of Teleport Architecture](./images/flow.png)
+![Diagram of Teleport Architecture](Teleport_Service/images/flow.png)
 
 Connections received via TCP are converted into an HTTP listener, enabling the system to handle requests through the HTTP protocol. The HTTP server runs in a lightweight, parallel processing thread (`goroutine`), allowing for concurrent request handling. The function responsible for serving HTTP requests is called `ConnectionManager`.
 
