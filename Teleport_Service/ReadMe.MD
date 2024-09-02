@@ -3,7 +3,7 @@
 ## suggest to read the report its better
 
 Teleport is a service developed using the Go programming language, chosen for its high efficiency in managing concurrent connections and superior performance. This makes it an ideal choice for building applications that need to handle large numbers of users with high traffic volumes.
-![Diagram of Teleport Architecture](./images/teleport_system.pn)
+Teleport_Service/images/teleport_system.png
 
 The service comprises several core components, including a central server for managing connections and sessions, an authentication system to ensure data security, and a mechanism for assigning subdomains to each client. The data flow is regulated according to subscription limits through rate limiters, with effective management of active sessions to ensure service continuity securely and efficiently.
 
